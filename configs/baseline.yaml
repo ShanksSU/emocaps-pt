@@ -1,0 +1,16 @@
+dataset: SEEDVIG       # DEAP, SEEDVIG
+work_dir: ./work_dir/  # root output dir; overridden by --work-dir on the command line
+
+# Training
+epochs: 30
+batch_size: 512
+lr: 5.0e-4
+lr_dec: 0.97
+early_stop_patience: 4
+num_folds: 10
+random_seed: 114514
+
+# Hardware
+device: 0        # GPU id; use -1 for CPU
+num_worker: 4
+

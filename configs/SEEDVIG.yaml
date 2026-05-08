@@ -1,0 +1,28 @@
+# SEED-VIG dataset configuration
+
+# Model
+input_shape: [17, 5, 1]   # [eeg_channels, freq_bands, 1]
+                           # eeg_channels is overridden at runtime
+                           # by the number of selected channels below
+
+# Dataset
+data_path: "/root/workspace/Dataset/seed-vig/"
+de_feature: de_movingAve   # de_movingAve | de_LDS | psd_movingAve | psd_LDS
+
+# Channel selection (1-indexed, matching electrode labels below)
+# null or omitted -> use all 17 channels
+# Example: [5, 6, 7, 8, 9, 10, 15] -> P5 P3 P1 PZ P2 PO3 PO4
+#
+# Channel index -> electrode name:
+#   1:FT7  2:T7   3:TP7  4:CP5  5:CP3
+#   6:P5   7:P3   8:P1   9:PZ   10:P2
+#   11:P4  12:P6  13:PO7 14:PO3 15:POZ
+#   16:PO4 17:PO8
+channels: [5, 6, 7, 8, 9, 10, 15]
+# all channels
+# channels: null
+
+# PERCLOS discretization thresholds
+# [0.35, 0.70] -> 3 classes: Awake / Tired / Drowsy
+# [0.35]       -> 2 classes: Alert / Drowsy
+perclos_thresholds: [0.35, 0.70]

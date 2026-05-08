@@ -1,0 +1,34 @@
+# DEAP dataset configuration
+
+# Model
+input_shape: [128, 32, 1]   # [time_steps, channels, 1]
+num_channels: 32             # first conv output channels
+
+# Dataset
+subjects: 32
+data_path: "/root/workspace/Dataset/deap-dataset/data_preprocessed_python/"
+preprocessed_path: "/root/workspace/Dataset/deap_preprocessed_data/"
+data_format: raw
+window_size: 128
+
+# Emotion dimensions to train (for run_sub_ind_model.py / run_model.py)
+# Available: VALENCE, AROUSAL, DOMINANCE, LIKING, VA, VAD
+dimensions: [VA, VAD]
+
+# Mapping: dimension name -> label column index in the preprocessed .hdf
+dimension_index:
+  VALENCE:   0
+  AROUSAL:   1
+  DOMINANCE: 2
+  LIKING:    3
+  VA:        4
+  VAD:       5
+
+# Mapping: dimension name -> number of classes
+dimension_num_class:
+  VALENCE:   2
+  AROUSAL:   2
+  DOMINANCE: 2
+  LIKING:    2
+  VA:        4
+  VAD:       8
