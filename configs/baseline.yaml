@@ -1,5 +1,5 @@
 dataset: SEEDVIG       # DEAP, SEEDVIG
-work_dir: ./work_dir/  # root output dir; overridden by --work-dir on the command line
+work_dir: ./work_dir/run_0508/  # root output dir; overridden by --work-dir on the command line
 
 # Training
 epochs: 30
