@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 from sklearn.model_selection import StratifiedKFold
 from tqdm import tqdm
@@ -51,7 +52,7 @@ def _fmt_time(seconds):
 
 
 def _load_deap_data(args, config):
-    """Return (data_np, labels_int) for the requested DEAP subset."""
+    _ensure_deap_cache(config)
     dim       = (args.dimension or 'VA').upper()
     num_class = _DEAP_DIM_NUM_CLASS[dim]
     dim_idx   = _DEAP_DIM_INDEX[dim]
@@ -79,7 +80,6 @@ def _load_deap_data(args, config):
 
 
 def _load_seedvig_data(args, config):
-    """Return (data_np, labels) for the requested SEED-VIG subset."""
     thresholds          = config.get('perclos_thresholds', [0.35, 0.70])
     num_class           = len(thresholds) + 1
     config['num_class'] = num_class
@@ -121,26 +121,24 @@ def _batch_infer(model, data_np, device, batch_size):
     preds  = []
     with torch.no_grad():
         for i in range(0, len(tensor), batch_size):
-            _, caps_len = model(tensor[i : i + batch_size].to(device))
+            _, caps_len, _ = model(tensor[i : i + batch_size].to(device))
             preds.append(caps_len.argmax(-1).cpu().numpy())
     return np.concatenate(preds)
 
 
 def _batch_extract(model, data_np, device, batch_size):
-    """Return (capsule_vectors [N, num_class, D], capsule_lengths [N, num_class])."""
     tensor   = torch.from_numpy(data_np)
     all_vecs = []
     all_lens = []
     with torch.no_grad():
         for i in range(0, len(tensor), batch_size):
-            caps_vec, caps_len = model(tensor[i : i + batch_size].to(device))
+            caps_vec, caps_len, _ = model(tensor[i : i + batch_size].to(device))
             all_vecs.append(caps_vec.cpu().numpy())
             all_lens.append(caps_len.cpu().numpy())
     return np.concatenate(all_vecs), np.concatenate(all_lens)
 
 
 def _print_report(preds, labels_int, class_names):
-    """Print metrics and return (report_lines, per_class_rows) for saving."""
     correct = (preds == labels_int).sum()
     total   = len(preds)
     header  = f"\nAccuracy: {correct}/{total} = {correct / total:.4f}\n"
@@ -185,6 +183,9 @@ class CapsNetTrainer:
             config['csv_log_save_dir'],
             dimension=dimension, subject=subject,
         ) / f'fold_{fold}.csv'
+
+        # r = 0.0005 * prod(input_shape), matching paper's "mean L2 = 0.0005 * sum L2"
+        self.recon_r = 0.0005 * float(np.prod(config['input_shape']))
 
         self.model = self._build_model()
         if verbose:
@@ -231,8 +232,9 @@ class CapsNetTrainer:
             for X, y in train_loader:
                 X, y = X.to(self.device), y.to(self.device)
                 optimizer.zero_grad()
-                _, caps_len = self.model(X)
-                loss = margin_loss(y, caps_len)
+                _, caps_len, reconstruction = self.model(X, y=y)
+                loss = (margin_loss(y, caps_len)
+                        + self.recon_r * F.mse_loss(reconstruction, X))
                 loss.backward()
                 optimizer.step()
                 total_loss += loss.item()
@@ -270,8 +272,9 @@ class CapsNetTrainer:
         with torch.no_grad():
             for X, y in test_loader:
                 X, y = X.to(self.device), y.to(self.device)
-                _, caps_len = self.model(X)
-                total_loss += margin_loss(y, caps_len).item()
+                _, caps_len, reconstruction = self.model(X)
+                total_loss += (margin_loss(y, caps_len)
+                               + self.recon_r * F.mse_loss(reconstruction, X)).item()
                 total_acc  += (caps_len.argmax(-1) == y.argmax(-1)).float().mean().item()
                 n_batches  += 1
 
@@ -294,7 +297,20 @@ def eeg_train(config, mode='sub_independent'):
         raise ValueError(f"Unsupported dataset: {dataset!r}")
 
 
+def _ensure_deap_cache(config):
+    """Run offline preprocessing if the HDF cache is missing or incomplete."""
+    cache_dir = Path(config['preprocessed_path']) / f"data_{config['data_format']}"
+    expected  = config['subjects']
+    existing  = len(list(cache_dir.glob('sub*.hdf'))) if cache_dir.exists() else 0
+    if existing < expected:
+        print(f"[DEAP] HDF cache incomplete ({existing}/{expected}). "
+              f"Running preprocessing — this only happens once...")
+        DataDEAP(config).pre_process(expected)
+        print("[DEAP] Preprocessing done.")
+
+
 def _train_deap(config, mode):
+    _ensure_deap_cache(config)
     model_name          = 'DEAP'
     dimension_index     = {_DIM_NAME_MAP[k]: v for k, v in config['dimension_index'].items()}
     dimension_num_class = {_DIM_NAME_MAP[k]: v for k, v in config['dimension_num_class'].items()}

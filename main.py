@@ -28,7 +28,6 @@ def load_config(baseline_path, dataset_override=None):
 
 
 def apply_work_dir(config, work_dir):
-    """Redirect all output paths under work_dir."""
     wd = Path(work_dir)
     config['saved_model_dir']  = str(wd / config.get('saved_model_dir',  'bin'))
     config['csv_log_save_dir'] = str(wd / config.get('csv_log_save_dir', 'csv_logs'))
@@ -100,7 +99,6 @@ if __name__ == '__main__':
     config = load_config(args.config, dataset_override=args.dataset)
     config['device'] = dev_id
 
-    # Priority: command line --work-dir > work_dir in config > None
     work_dir = args.work_dir or config.get('work_dir')
     if work_dir:
         apply_work_dir(config, work_dir)
